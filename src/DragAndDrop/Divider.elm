@@ -12,19 +12,9 @@ type Orientation
     | Vertical
 
 
-main : Html msg
-main =
-    Html.ul
-        []
-        [ Html.li [] [ Html.text "test" ]
-        , view Horizontal 20 [] dividerLine
-        , Html.li [] [ Html.text "items" ]
-        ]
-
-
-view : Orientation -> Float -> List (Html.Attribute msg) -> Html msg -> Html msg
+view : Orientation -> Float -> List (Html.Attribute msg) -> (Float -> Html msg) -> Html msg
 view orientation size attributes image =
-    wrapper orientation <| overlapper orientation size attributes image
+    wrapper orientation <| overlapper orientation size attributes (image size)
 
 
 match : { horiz : a, vert : a } -> Orientation -> a
@@ -63,28 +53,31 @@ wrapper o elem =
         [ elem ]
 
 
-dividerLine : Html msg
-dividerLine =
+defaultDivider : Bool -> Float -> Html msg
+defaultDivider hovering size =
     Svg.svg
         [ Attr.width "100%"
         , Attr.height "100%"
-        , Attr.viewBox "0 0 100 20"
+        , Attr.viewBox ("0 0 100 " ++ toString (floor size))
         , Attr.preserveAspectRatio "none"
         ]
-        [ line 0 10 100 10
+        [ line hovering 0 (size / 2) 100 (size / 2)
 
         --, line 0 0 0 20
         --, line 100 0 100 20
         ]
 
 
-line : Float -> Float -> Float -> Float -> Svg msg
-line x1 y1 x2 y2 =
+line : Bool -> Float -> Float -> Float -> Float -> Svg msg
+line hovering x1 y1 x2 y2 =
     Svg.line
         [ Attr.x1 (toString x1)
         , Attr.y1 (toString y1)
         , Attr.x2 (toString x2)
         , Attr.y2 (toString y2)
-        , Attr.style "stroke:rgb(20,20,20);stroke-width:2"
+        , if hovering then
+            Attr.style "stroke:rgb(20,20,20);stroke-width:2"
+          else
+            Attr.style "stroke:rgb(200,200,200);stroke-width:1"
         ]
         []

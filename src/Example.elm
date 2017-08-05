@@ -21,12 +21,12 @@ type alias Model =
 
 
 type alias Msg =
-    ReorderList.Msg ()
+    ReorderList.Msg Never
 
 
 init : ( Model, Cmd Msg )
 init =
-    ReorderList.init Divider.Horizontal [ "These", "are", "draggable" ] ! []
+    ReorderList.init Divider.Horizontal [ "These", "are", "a", "lot", "of", "draggable", "html", "elements" ] ! []
 
 
 
@@ -35,69 +35,7 @@ init =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    let
-        ( dragModel, event ) =
-            DragAndDrop.updateWithEvents msg model.dragModel
-
-        possiblyApplyEvents model =
-            Maybe.withDefault model (Maybe.map2 updateDrop event (Just model))
-    in
-    possiblyApplyEvents { model | dragModel = dragModel } ! []
-
-
-updateDrop : DragAndDrop.Event Int Int -> Model -> Model
-updateDrop event model =
-    case event of
-        DragAndDrop.SuccessfulDrop dragIndex dropIndex ->
-            --model & items $= switchIndices dragIndex dropIndex
-            Maybe.withDefault model
-                (Maybe.map
-                    (\draggedElem ->
-                        model & items $= applyDrop dragIndex dropIndex draggedElem
-                    )
-                    (getIndex dragIndex model.items)
-                )
-
-        _ ->
-            model
-
-
-applyDrop : Int -> Int -> a -> List a -> List a
-applyDrop dragIndex dropIndex draggedElem list =
-    let
-        handleIndex index elem =
-            if index == 0 && dropIndex == 0 then
-                [ draggedElem, elem ]
-            else if index + 1 == dropIndex then
-                [ elem, draggedElem ]
-            else if index == dragIndex then
-                []
-            else
-                [ elem ]
-    in
-    List.concat (List.indexedMap handleIndex list)
-
-
-orTry : Maybe a -> Maybe a -> Maybe a
-orTry maybe1 maybe2 =
-    case maybe1 of
-        Just x ->
-            Just x
-
-        Nothing ->
-            maybe2
-
-
-getIndex : Int -> List a -> Maybe a
-getIndex i =
-    let
-        justOnEqual index =
-            if index == i then
-                Just
-            else
-                always Nothing
-    in
-    List.foldr orTry Nothing << List.indexedMap justOnEqual
+    ReorderList.update (\_ m -> m) msg model ! []
 
 
 
@@ -107,26 +45,26 @@ getIndex i =
 view : Model -> Html Msg
 view model =
     let
-        droppableImage =
+        droppableImage hovering size =
             Html.div
                 [ Html.style
                     [ ( "width", "inherit" ), ( "height", "inherit" ) ]
                 ]
-                [ Divider.dividerLine ]
+                [ Divider.defaultDivider hovering size ]
 
         viewItems items =
             List.indexedMap (viewItem model.dragModel) items
     in
     Html.ul
         []
-        (ReorderList.view droppableImage viewItems model)
+        (ReorderList.view 40 droppableImage viewItems model)
 
 
 viewItem : DragAndDrop.Model Int Int -> Int -> Item -> Html msg
 viewItem dragModel index item =
     let
         attributes =
-            DragAndDrop.draggable dragModel identity index
+            [ Html.style [ ( "font-size", "40px" ) ] ]
                 |> appendWhen (DragAndDrop.isDraggingId index dragModel)
                     [ Html.style [ ( "color", "grey" ) ] ]
     in
@@ -150,8 +88,8 @@ appendWhen b toAppend list =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
-    DragAndDrop.subscriptions model.dragModel
+subscriptions =
+    ReorderList.subscriptions
 
 
 main : Program Never Model Msg
@@ -162,17 +100,3 @@ main =
         , update = update
         , view = view
         }
-
-
-
--- Lenses
-
-
-items : Focus.FieldSetter Model (List Item)
-items f model =
-    { model | items = f model.items }
-
-
-dragModel : Focus.FieldSetter Model (DragAndDrop.Model Int Int)
-dragModel f model =
-    { model | dragModel = f model.dragModel }
