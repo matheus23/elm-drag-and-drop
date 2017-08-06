@@ -55,40 +55,60 @@ subscriptions model =
 
 
 update : Msg dragId dropId -> Model dragId dropId -> Model dragId dropId
-update msg =
-    updateWithEvents msg >> Tuple.first
+update =
+    updateHelp False
 
 
-updateWithEvents : Msg dragId dropId -> Model dragId dropId -> ( Model dragId dropId, Maybe (Event dragId dropId) )
-updateWithEvents msg model =
+updateHelp : Bool -> Msg dragId dropId -> Model dragId dropId -> Model dragId dropId
+updateHelp sticky msg =
+    updateWithEvents sticky msg >> Tuple.first
+
+
+updateWithEvents : Bool -> Msg dragId dropId -> Model dragId dropId -> ( Model dragId dropId, Maybe (Event dragId dropId) )
+updateWithEvents sticky msg model =
     case msg of
         EnterDraggable dragId ->
-            ( model & draggableHover .= Just dragId, Nothing )
+            if not (isDragging model) then
+                ( model & draggableHover .= Just dragId, Nothing )
+            else
+                ( model, Nothing )
 
         LeaveDraggable dragId ->
             -- because you can never be quite sure about the order of events.
-            ( model
-                |> Focus.when (equalsMaybe dragId model.draggableHover)
-                    (draggableHover .= Nothing)
-            , Nothing
-            )
+            if not (isDragging model) then
+                ( model
+                    |> Focus.when (equalsMaybe dragId model.draggableHover)
+                        (draggableHover .= Nothing)
+                , Nothing
+                )
+            else
+                ( model, Nothing )
 
         EnterDroppable dropId ->
-            ( model & droppableHover .= Just dropId, Nothing )
+            if isDragging model then
+                ( model & droppableHover .= Just dropId, Nothing )
+            else
+                ( model, Nothing )
 
         LeaveDroppable dropId ->
-            ( model
-                |> Focus.when (equalsMaybe dropId model.droppableHover)
-                    (droppableHover .= Nothing)
-            , Nothing
-            )
+            if not sticky then
+                ( model
+                    |> Focus.when (equalsMaybe dropId model.droppableHover)
+                        (droppableHover .= Nothing)
+                , Nothing
+                )
+            else
+                ( model, Nothing )
 
         StartDragging dragId ->
-            ( model
-                |> (dragging .= Just dragId)
-                |> (draggableHover .= Nothing)
-            , Just (StartedDrag dragId)
-            )
+            if not (isDragging model) then
+                ( model
+                    |> (dragging .= Just dragId)
+                    |> (draggableHover .= Nothing)
+                , Just (StartedDrag dragId)
+                )
+            else
+                ( model, Nothing )
 
         StopDragging ->
             let

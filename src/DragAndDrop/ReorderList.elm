@@ -41,7 +41,7 @@ update updateOthers msg model =
         DragAndDropMsg dragAndDropMsg ->
             let
                 ( newDragModel, event ) =
-                    DragAndDrop.updateWithEvents dragAndDropMsg model.dragModel
+                    DragAndDrop.updateWithEvents False dragAndDropMsg model.dragModel
 
                 possiblyApplyEvents model =
                     Maybe.withDefault model (Maybe.map2 updateDrop event (Just model))
@@ -114,7 +114,10 @@ view droppableSize viewDroppable viewInner model =
 
         addDividers list =
             if DragAndDrop.isDragging model.dragModel then
-                divider 0 :: List.concat (List.indexedMap addDivider list)
+                if not (DragAndDrop.isDraggingId 0 model.dragModel) then
+                    divider 0 :: List.concat (List.indexedMap addDivider list)
+                else
+                    List.concat (List.indexedMap addDivider list)
             else
                 list
 
