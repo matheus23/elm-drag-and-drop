@@ -3,8 +3,6 @@ module Example exposing (..)
 import DragAndDrop
 import DragAndDrop.Divider as Divider
 import DragAndDrop.ReorderList as ReorderList
-import Focus exposing (..)
-import FocusMore as Focus
 import Html exposing (Html)
 import Html.Attributes as Html
 
@@ -26,7 +24,7 @@ type alias Msg =
 
 init : ( Model, Cmd Msg )
 init =
-    ReorderList.init Divider.Horizontal [ "These", "are", "a", "lot", "of", "draggable", "html", "elements" ] ! []
+    ReorderList.init [ "These", "are", "a", "lot", "of", "draggable", "html", "elements" ] ! []
 
 
 
@@ -45,19 +43,17 @@ update msg model =
 view : Model -> Html Msg
 view model =
     let
-        droppableImage hovering size =
-            Html.div
-                [ Html.style
-                    [ ( "width", "inherit" ), ( "height", "inherit" ) ]
-                ]
-                [ Divider.defaultDivider hovering size ]
-
-        viewItems items =
-            List.indexedMap (viewItem model.dragModel) items
+        settings =
+            { viewItems =
+                \items ->
+                    List.indexedMap (viewItem model.dragModel) items
+            , orientation = Divider.Horizontal
+            , dividerSize = 40
+            }
     in
     Html.ul
-        []
-        (ReorderList.view 40 droppableImage viewItems model)
+        [ Html.style [ ( "width", "500px" ) ] ]
+        (ReorderList.view settings model)
 
 
 viewItem : DragAndDrop.Model Int Int -> Int -> Item -> Html msg

@@ -11,7 +11,6 @@ import Html.Attributes as Attributes
 type alias Model a =
     { elements : List a
     , dragModel : DragAndDrop.Model Int Int
-    , orientation : Divider.Orientation
     }
 
 
@@ -20,11 +19,17 @@ type Msg msg
     | DragAndDropMsg (DragAndDrop.Msg Int Int)
 
 
-init : Divider.Orientation -> List a -> Model a
-init orientation elements =
+type alias ViewSettings a msg =
+    { dividerSize : Float
+    , orientation : Divider.Orientation
+    , viewItems : List a -> List (Html msg)
+    }
+
+
+init : List a -> Model a
+init elements =
     { elements = elements
     , dragModel = DragAndDrop.init
-    , orientation = orientation
     }
 
 
@@ -96,14 +101,14 @@ subscriptions model =
 -- View
 
 
-view : Float -> (Bool -> Float -> Html (Msg msg)) -> (List a -> List (Html msg)) -> Model a -> List (Html (Msg msg))
-view droppableSize viewDroppable viewInner model =
+view : ViewSettings a msg -> Model a -> List (Html (Msg msg))
+view settings model =
     let
         divider index =
-            Divider.view Divider.Horizontal
-                droppableSize
+            Divider.viewWith (Divider.defaultDivider (DragAndDrop.isHoveringDroppableId index model.dragModel))
+                settings.orientation
+                settings.dividerSize
                 (List.map (Attributes.map DragAndDropMsg) (DragAndDrop.droppable model.dragModel identity index))
-                (viewDroppable (DragAndDrop.isHoveringDroppableId index model.dragModel))
 
         addDivider index elem =
             -- No dividers above and below the dragging element needed, dropping there has no effect
@@ -127,7 +132,7 @@ view droppableSize viewDroppable viewInner model =
                 (List.map (Attributes.map DragAndDropMsg) (DragAndDrop.draggable model.dragModel identity index))
                 [ Html.map ElementsMsg elem ]
     in
-    addDividers (List.indexedMap makeDraggable (viewInner model.elements))
+    addDividers (List.indexedMap makeDraggable (settings.viewItems model.elements))
 
 
 

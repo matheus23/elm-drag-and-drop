@@ -2,7 +2,6 @@ module DragAndDrop.Divider exposing (..)
 
 import Html exposing (Html)
 import Html.Attributes as Html
-import Html.Events as Events
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
 
@@ -12,9 +11,27 @@ type Orientation
     | Vertical
 
 
-view : Orientation -> Float -> List (Html.Attribute msg) -> (Float -> Html msg) -> Html msg
-view orientation size attributes image =
-    wrapper orientation <| overlapper orientation size attributes (image size)
+type alias ViewFunction msg =
+    Orientation -> Float -> List (Html.Attribute msg) -> Html msg
+
+
+type alias DividerImage msg =
+    Bool -> Orientation -> Float -> Html msg
+
+
+view : Html msg -> ViewFunction msg
+view divider orientation size attributes =
+    wrapper orientation <| overlapper orientation size attributes divider
+
+
+viewWithSize : (Float -> Html msg) -> ViewFunction msg
+viewWithSize viewDivider orientation size =
+    view (viewDivider size) orientation size
+
+
+viewWith : (Orientation -> Float -> Html msg) -> ViewFunction msg
+viewWith viewDivider orientation size =
+    view (viewDivider orientation size) orientation size
 
 
 match : { horiz : a, vert : a } -> Orientation -> a
@@ -53,18 +70,25 @@ wrapper o elem =
         [ elem ]
 
 
-defaultDivider : Bool -> Float -> Html msg
-defaultDivider hovering size =
+defaultDivider : DividerImage msg
+defaultDivider hovering orientation size =
     Svg.svg
         [ Attr.width "100%"
         , Attr.height "100%"
-        , Attr.viewBox ("0 0 100 " ++ toString (floor size))
+        , Attr.viewBox
+            (match
+                { horiz = "0 0 " ++ toString (floor (size * 5)) ++ " " ++ toString (floor size)
+                , vert = "0 0 " ++ toString (floor size) ++ " " ++ toString (floor (size * 5))
+                }
+                orientation
+            )
         , Attr.preserveAspectRatio "none"
         ]
-        [ line hovering 0 (size / 2) 100 (size / 2)
-
-        --, line 0 0 0 20
-        --, line 100 0 100 20
+        [ match
+            { horiz = line hovering 0 (size / 2) (size * 5) (size / 2)
+            , vert = line hovering (size / 2) 0 (size / 2) (size * 5)
+            }
+            orientation
         ]
 
 
