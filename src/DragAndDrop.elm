@@ -11,11 +11,19 @@ import Mouse
 -- Model
 
 
-type alias Model dragId dropId =
-    { dragging : Maybe dragId
-    , draggableHover : Maybe dragId
-    , droppableHover : Maybe dropId
+type alias DraggingData dragId dropId =
+    { dragId : dragId
+    , hoverDropId : Maybe dropId
     }
+
+
+type alias NotDraggingData dragId =
+    { hoverDragId : Maybe dragId }
+
+
+type Model dragId dropId
+    = Dragging (DraggingData dragId dropId)
+    | NotDragging (NotDraggingData dragId)
 
 
 type Msg dragId dropId
@@ -35,7 +43,8 @@ type Event dragId dropId
 
 init : Model dragId dropId
 init =
-    { dragging = Nothing, draggableHover = Nothing, droppableHover = Nothing }
+    NotDragging
+        { hoverDragId = Nothing }
 
 
 
@@ -66,45 +75,41 @@ updateHelp sticky msg =
 
 updateWithEvents : Bool -> Msg dragId dropId -> Model dragId dropId -> ( Model dragId dropId, Maybe (Event dragId dropId) )
 updateWithEvents sticky msg model =
+    let
+        replaceNothingIfEqual value maybe =
+            case maybe of
+                Just sth ->
+                    if value == sth then
+                        Nothing
+                    else
+                        Just sth
+
+                Nothing ->
+                    Nothing
+    in
     case msg of
         EnterDraggable dragId ->
-            if not (isDragging model) then
-                ( model & draggableHover .= Just dragId, Nothing )
-            else
-                ( model, Nothing )
+            ( model & notDragging => hoverDragId .= Just dragId, Nothing )
 
         LeaveDraggable dragId ->
-            -- because you can never be quite sure about the order of events.
-            if not (isDragging model) then
-                ( model
-                    |> Focus.when (equalsMaybe dragId model.draggableHover)
-                        (draggableHover .= Nothing)
-                , Nothing
-                )
-            else
-                ( model, Nothing )
+            ( model & notDragging => hoverDragId $= replaceNothingIfEqual dragId, Nothing )
 
         EnterDroppable dropId ->
-            if isDragging model then
-                ( model & droppableHover .= Just dropId, Nothing )
-            else
-                ( model, Nothing )
+            ( model & dragging => hoverDropId .= Just dropId, Nothing )
 
         LeaveDroppable dropId ->
-            if not sticky then
-                ( model
-                    |> Focus.when (equalsMaybe dropId model.droppableHover)
-                        (droppableHover .= Nothing)
-                , Nothing
-                )
-            else
-                ( model, Nothing )
+            ( model
+                |> Focus.when (not sticky)
+                    (dragging => hoverDropId $= replaceNothingIfEqual dropId)
+            , Nothing
+            )
 
         StartDragging dragId ->
             if not (isDragging model) then
-                ( model
-                    |> (dragging .= Just dragId)
-                    |> (draggableHover .= Nothing)
+                ( Dragging
+                    { dragId = dragId
+                    , hoverDropId = Nothing
+                    }
                 , Just (StartedDrag dragId)
                 )
             else
@@ -113,17 +118,25 @@ updateWithEvents sticky msg model =
         StopDragging ->
             let
                 dropEvent dragId =
-                    case model.droppableHover of
-                        Just dropId ->
-                            SuccessfulDrop dragId dropId
+                    case model of
+                        Dragging { hoverDropId } ->
+                            case hoverDropId of
+                                Just dropId ->
+                                    SuccessfulDrop dragId dropId
 
-                        Nothing ->
+                                _ ->
+                                    FailedDrop dragId
+
+                        _ ->
                             FailedDrop dragId
             in
-            ( model
-                |> (dragging .= Nothing)
-                |> (droppableHover .= Nothing)
-            , Maybe.map dropEvent model.dragging
+            ( NotDragging { hoverDragId = Nothing }
+            , case model of
+                Dragging { dragId } ->
+                    Just (dropEvent dragId)
+
+                _ ->
+                    Nothing
             )
 
 
@@ -160,22 +173,42 @@ droppable model inject dropId =
 
 isDragging : Model dragId dropId -> Bool
 isDragging model =
-    isJust model.dragging
+    case model of
+        Dragging _ ->
+            True
+
+        NotDragging _ ->
+            False
 
 
 isDraggingId : dragId -> Model dragId dropId -> Bool
-isDraggingId dragId model =
-    equalsMaybe dragId model.dragging
+isDraggingId droppableId model =
+    case model of
+        Dragging { dragId } ->
+            dragId == droppableId
+
+        NotDragging _ ->
+            False
 
 
 isHoveringDraggableId : dragId -> Model dragId dragId -> Bool
 isHoveringDraggableId dragId model =
-    equalsMaybe dragId model.draggableHover
+    case model of
+        NotDragging { hoverDragId } ->
+            equalsMaybe dragId hoverDragId
+
+        Dragging _ ->
+            False
 
 
 isHoveringDroppableId : dropId -> Model dragId dropId -> Bool
 isHoveringDroppableId dropId model =
-    equalsMaybe dropId model.droppableHover
+    case model of
+        Dragging { hoverDropId } ->
+            equalsMaybe dropId hoverDropId
+
+        NotDragging _ ->
+            False
 
 
 
@@ -185,11 +218,6 @@ isHoveringDroppableId dropId model =
 equalsMaybe : a -> Maybe a -> Bool
 equalsMaybe a maybe =
     Maybe.withDefault False (Maybe.map ((==) a) maybe)
-
-
-isJust : Maybe a -> Bool
-isJust m =
-    Maybe.withDefault False (Maybe.map (always True) m)
 
 
 preventingOnMouseDown : msg -> Html.Attribute msg
@@ -205,16 +233,31 @@ preventingOnMouseDown msg =
 -- Lenses
 
 
-dragging : Focus.FieldSetter (Model dragId dropId) (Maybe dragId)
+dragging : Focus.FieldSetter (Model dragId dropId) (DraggingData dragId dropId)
 dragging f model =
-    { model | dragging = f model.dragging }
+    case model of
+        Dragging data ->
+            Dragging (f data)
+
+        _ ->
+            model
 
 
-draggableHover : Focus.FieldSetter (Model dragId dropId) (Maybe dragId)
-draggableHover f model =
-    { model | draggableHover = f model.draggableHover }
+notDragging : Focus.FieldSetter (Model dragId dropId) (NotDraggingData dragId)
+notDragging f model =
+    case model of
+        NotDragging data ->
+            NotDragging (f data)
+
+        _ ->
+            model
 
 
-droppableHover : Focus.FieldSetter (Model dragId dropId) (Maybe dropId)
-droppableHover f model =
-    { model | droppableHover = f model.droppableHover }
+hoverDragId : Focus.FieldSetter (NotDraggingData dragId) (Maybe dragId)
+hoverDragId f model =
+    { model | hoverDragId = f model.hoverDragId }
+
+
+hoverDropId : Focus.FieldSetter (DraggingData dragId dropId) (Maybe dropId)
+hoverDropId f model =
+    { model | hoverDropId = f model.hoverDropId }
