@@ -1,6 +1,8 @@
 # Drag And Drop
 
-implemented within elm (unlike html5-drag-and-drop). I experienced the html5 drag and drop api to be buggy and inconsistend across browsers, but all building blocks to roll a pure-elm version exist: onclick, mouseover and mouseleave events, a subscription to mouseup events and voila.
+I experienced the html5 drag and drop api to be buggy and inconsistend across browsers, but all building blocks to roll a pure-elm version exist: mouseover and mouseleave events, a subscription to mouseup events and voila.
+
+However, I reuse the dragstart event (from the html5 api), so that draggable elements can still receive onclick events.
 
 ## Demo
 
