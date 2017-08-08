@@ -117,10 +117,16 @@ view settings model =
         ( elementCombine, elementAttach, elementAttachBefore ) =
             case settings.orientation of
                 Divider.Horizontal ->
-                    ( Element.column settings.nostyle [], \a e -> Element.below [ a ] e, \a e -> Element.above [ a ] e )
+                    ( Element.column settings.nostyle []
+                    , \a e -> Element.column settings.nostyle [] [ e, a ]
+                    , \a e -> Element.column settings.nostyle [] [ a, e ]
+                    )
 
                 Divider.Vertical ->
-                    ( Element.row settings.nostyle [], \a e -> Element.onRight [ a ] e, \a e -> Element.onLeft [ a ] e )
+                    ( Element.row settings.nostyle []
+                    , \a e -> Element.row settings.nostyle [] [ e, a ]
+                    , \a e -> Element.row settings.nostyle [] [ a, e ]
+                    )
 
         addDivider index elem =
             -- No dividers above and below the dragging element needed, dropping there has no effect
