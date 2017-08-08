@@ -60,6 +60,7 @@ import Focus exposing (..)
 import FocusMore as Focus
 import Html exposing (Html)
 import Html.Events as HtmlEvents
+import Html5.DragDrop
 import Json.Decode as Decode exposing (Decoder)
 import Mouse
 
@@ -135,6 +136,7 @@ type Msg dragId dropId
     | StartDragging dragId Mouse.Position
     | UpdatePosition Mouse.Position
     | StopDragging
+    | NoOp
 
 
 {-| Events that can be produced by the `updateWithEvents` function after
@@ -317,6 +319,9 @@ updateWithEvents sticky msg model =
                     Nothing
             )
 
+        NoOp ->
+            ( model, Nothing )
+
 
 
 -- Attributes
@@ -330,8 +335,9 @@ draggableHtml model inject dragId =
     if not (isDragging model) then
         [ HtmlEvents.onMouseOver (inject (EnterDraggable dragId))
         , HtmlEvents.onMouseLeave (inject (LeaveDraggable dragId))
-        , preventingOnMouseDown (\mousePosition -> inject (StartDragging dragId mousePosition))
+        , preventingDragStart (\mousePosition -> inject (StartDragging dragId mousePosition))
         ]
+            ++ Html5.DragDrop.draggable (\msg -> inject NoOp) dragId
     else
         []
 
@@ -442,9 +448,9 @@ equalsMaybe a maybe =
     Maybe.withDefault False (Maybe.map ((==) a) maybe)
 
 
-preventingOnMouseDown : (Mouse.Position -> msg) -> Html.Attribute msg
-preventingOnMouseDown makeMsg =
-    HtmlEvents.onWithOptions "mousedown"
+preventingDragStart : (Mouse.Position -> msg) -> Html.Attribute msg
+preventingDragStart makeMsg =
+    HtmlEvents.onWithOptions "dragstart"
         { stopPropagation = True
         , preventDefault = True
         }
