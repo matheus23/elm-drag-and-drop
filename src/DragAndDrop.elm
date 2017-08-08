@@ -60,7 +60,7 @@ import Focus exposing (..)
 import FocusMore as Focus
 import Html exposing (Html)
 import Html.Events as HtmlEvents
-import Json.Decode as Decode
+import Json.Decode as Decode exposing (Decoder)
 import Mouse
 
 
@@ -75,10 +75,18 @@ the mouse yet, or `Nothing` if not hovering any droppable element.
 Droppable elements are elements with attributes from the functions
 `droppable` or `droppableHtml`.
 
+`dragPoint` and `absolutePosition` can be used to show a dragging image/element
+at the current position of the mouse. `dragPoint` is the position of the mouse
+relative to the top left corner of the dragged element when the user initiated
+the drag and `absolutePosition` is the current absolute position of the mouse
+on the page (see [Mouse.position](http://package.elm-lang.org/packages/elm-lang/mouse/1.0.1/Mouse))
+
 -}
 type alias DraggingData dragId dropId =
     { dragId : dragId
     , hoverDropId : Maybe dropId
+    , dragPoint : Mouse.Position
+    , absolutePosition : Mouse.Position
     }
 
 
@@ -124,7 +132,8 @@ type Msg dragId dropId
     | LeaveDraggable dragId
     | EnterDroppable dropId
     | LeaveDroppable dropId
-    | StartDragging dragId
+    | StartDragging dragId Mouse.Position
+    | UpdatePosition Mouse.Position
     | StopDragging
 
 
@@ -174,7 +183,10 @@ Add it to your subscriptions like this:
 subscriptions : Model dragId dropId -> Sub (Msg dragId dropId)
 subscriptions model =
     if isDragging model then
-        Mouse.ups (always StopDragging)
+        Sub.batch
+            [ Mouse.ups (always StopDragging)
+            , Mouse.moves UpdatePosition
+            ]
     else
         Sub.none
 
@@ -265,16 +277,21 @@ updateWithEvents sticky msg model =
             , Nothing
             )
 
-        StartDragging dragId ->
+        StartDragging dragId pos ->
             if not (isDragging model) then
                 ( Dragging
                     { dragId = dragId
+                    , dragPoint = pos
+                    , absolutePosition = { x = 0, y = 0 }
                     , hoverDropId = Nothing
                     }
                 , Just (StartedDrag dragId)
                 )
             else
                 ( model, Nothing )
+
+        UpdatePosition newMousePosition ->
+            ( model & dragging => absolutePosition .= newMousePosition, Nothing )
 
         StopDragging ->
             let
@@ -313,7 +330,7 @@ draggableHtml model inject dragId =
     if not (isDragging model) then
         [ HtmlEvents.onMouseOver (inject (EnterDraggable dragId))
         , HtmlEvents.onMouseLeave (inject (LeaveDraggable dragId))
-        , preventingOnMouseDown (inject (StartDragging dragId))
+        , preventingOnMouseDown (\mousePosition -> inject (StartDragging dragId mousePosition))
         ]
     else
         []
@@ -425,13 +442,24 @@ equalsMaybe a maybe =
     Maybe.withDefault False (Maybe.map ((==) a) maybe)
 
 
-preventingOnMouseDown : msg -> Html.Attribute msg
-preventingOnMouseDown msg =
+preventingOnMouseDown : (Mouse.Position -> msg) -> Html.Attribute msg
+preventingOnMouseDown makeMsg =
     HtmlEvents.onWithOptions "mousedown"
         { stopPropagation = True
         , preventDefault = True
         }
-        (Decode.succeed msg)
+        (relativeMousePosition
+            |> Decode.map makeMsg
+        )
+
+
+{-| TODO: Maybe change this to decode to floats, since it's spec actually says so...
+-}
+relativeMousePosition : Decoder Mouse.Position
+relativeMousePosition =
+    Decode.map2 Mouse.Position
+        (Decode.field "offsetX" Decode.int)
+        (Decode.field "offsetY" Decode.int)
 
 
 
@@ -466,3 +494,8 @@ hoverDragId f model =
 hoverDropId : Focus.FieldSetter (DraggingData dragId dropId) (Maybe dropId)
 hoverDropId f model =
     { model | hoverDropId = f model.hoverDropId }
+
+
+absolutePosition : Focus.FieldSetter (DraggingData dragId dropId) Mouse.Position
+absolutePosition f model =
+    { model | absolutePosition = f model.absolutePosition }
