@@ -1,5 +1,5 @@
 {
-    "version": "0.0.1",
+    "version": "1.0.0",
     "summary": "style-elements compatible Drag and Drop library similar to html5 drag and drop",
     "repository": "https://github.com/matheus23/elm-drag-and-drop.git",
     "license": "BSD3",
