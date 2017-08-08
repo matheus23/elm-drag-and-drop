@@ -5,7 +5,10 @@ import DragAndDrop.Divider as Divider
 import DragAndDrop.ReorderList as ReorderList
 import Element exposing (Element)
 import Element.Attributes as Element
+import Element.Events as Events
 import ExampleStyle exposing (..)
+import Focus exposing (($=), (&), (.=), (=>), Setter)
+import FocusMore as Focus exposing (FieldSetter)
 import Html exposing (Html)
 
 
@@ -20,8 +23,12 @@ type alias Model =
     ReorderList.Model Item
 
 
+type ItemsMsg
+    = UpdateItem Int String
+
+
 type alias Msg =
-    ReorderList.Msg Never
+    ReorderList.Msg ItemsMsg
 
 
 init : ( Model, Cmd Msg )
@@ -35,7 +42,14 @@ init =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ReorderList.update (\_ m -> m) msg model ! []
+    ReorderList.update updateItems msg model ! []
+
+
+updateItems : ItemsMsg -> List Item -> List Item
+updateItems msg items =
+    case msg of
+        UpdateItem index newContent ->
+            items & Focus.index index .= newContent
 
 
 
@@ -64,11 +78,11 @@ view model =
         (ReorderList.view settings model)
 
 
-viewItem : DragAndDrop.Model Int Int -> Int -> Item -> Element Style Variants msg
+viewItem : DragAndDrop.Model Int Int -> Int -> Item -> Element Style Variants ItemsMsg
 viewItem dragModel index item =
-    Element.el (ItemStyle (DragAndDrop.isDraggingId index dragModel))
-        []
-        (Element.text item)
+    Element.inputText (ItemStyle (DragAndDrop.isDraggingId index dragModel))
+        [ Events.onInput (UpdateItem index) ]
+        item
 
 
 
