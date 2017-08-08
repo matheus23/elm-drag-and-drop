@@ -1,4 +1,23 @@
-module DragAndDrop.Divider exposing (..)
+module DragAndDrop.Divider
+    exposing
+        ( Orientation(..)
+        , defaultDivider
+        , viewWith
+        )
+
+{-| This module's contents are almost all unexposed right now. This might change in the future,
+when you can customize the dividers in your `ReorderList`.
+
+    import DragAndDrop.Divider as Divider
+
+@docs Orientation
+
+
+# Unstable API
+
+@docs viewWith, defaultDivider
+
+-}
 
 import Html exposing (Html)
 import Html.Attributes as Html
@@ -6,6 +25,14 @@ import Svg exposing (Svg)
 import Svg.Attributes as Attr
 
 
+{-| The orientation the divider is dividing.
+
+Think of a divider as a fine line between elements. It is a horizontal divider,
+when the line is horizontal (even though it divides elements vertically).
+
+This might be really confusing right now can should change in the future.
+
+-}
 type Orientation
     = Horizontal
     | Vertical
@@ -29,6 +56,13 @@ viewWithSize viewDivider orientation size =
     view (viewDivider size) orientation size
 
 
+{-| View a divider
+
+    Divider.viewWith (Divider.defaultDivider isHovered) orientation size attributes
+
+Api might change in the future.
+
+-}
 viewWith : (Orientation -> Float -> Html msg) -> ViewFunction msg
 viewWith viewDivider orientation size =
     view (viewDivider orientation size) orientation size
@@ -71,6 +105,15 @@ wrapper o elem =
         [ elem ]
 
 
+{-| A default divider.
+
+Shows a fine, black line when hovered and a fine grey line when not hovered.
+
+The line is oriented the way given as orientation.
+
+Api might change in the future.
+
+-}
 defaultDivider : DividerImage msg
 defaultDivider hovering orientation size =
     Svg.svg

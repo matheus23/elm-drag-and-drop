@@ -1,4 +1,51 @@
-module DragAndDrop.ReorderList exposing (..)
+module DragAndDrop.ReorderList
+    exposing
+        ( Model
+        , Msg(..)
+        , ViewConfig
+        , elements
+        , init
+        , subscriptions
+        , update
+        , view
+        )
+
+{-|
+
+
+# Make a reorderable list of elements
+
+This module is ment to be imported like this:
+
+    import DragAndDrop.ReorderList as ReorderList
+    import DragAndDrop.Divider as Divider
+
+Using this module you can simply refactor your `List a` of non-reorderable
+elements in your model to reorderable elements, by changing the type to
+`ReorderList.Model a` and adding some update functions, subscriptions and
+messages.
+
+
+# Model
+
+@docs Model, init, Msg
+
+
+# Update
+
+@docs update, subscriptions
+
+
+# View
+
+@docs ViewConfig, view
+
+
+# Model utilities
+
+@docs elements
+
+-}
 
 import DragAndDrop
 import DragAndDrop.Divider as Divider
@@ -9,18 +56,70 @@ import FocusMore as Focus
 import Html.Attributes as Html
 
 
+{-| The model for a list of reorderable elements.
+
+You can use this as a replacement for lists in your model
+(which werent reorderable before). So if you have this:
+
+    type alias Model =
+        { catImages : List CatImage
+        }
+
+You can refactor it to this:
+
+    type alias Model =
+        { catImages : ReorderList.Model CatImage
+        }
+
+Use `init` to create an initial model.
+
+Maintains the `DragAndDrop.Model` for making use of the
+`DragAndDrop`-module.
+
+-}
 type alias Model a =
     { elements : List a
     , dragModel : DragAndDrop.Model Int Int
     }
 
 
+{-| Use this union type to extend your messages so that you can
+use the `ReorderList.update` function.
+
+When you had these messages before:
+
+    type Msg
+        = UpdateCatImage Int ...
+        | RemoveCatImage Int
+
+You refactor it to be like this:
+
+    type CatImageMsg
+        = UpdateCatImage Int ...
+        | RemoveCatImage Int
+
+    type alias Msg =
+        ReorderList.Msg CatImageMsg
+
+-}
 type Msg msg
     = ElementsMsg msg
     | DragAndDropMsg (DragAndDrop.Msg Int Int)
 
 
-type alias ViewSettings style variant a msg =
+{-| A configuration for the viewing function. It should be the same
+for all of your calls, so could be top-level defined.
+
+    reorderListConfig : ViewConfig MyStyle MyVariants Msg
+    reorderListConfig =
+        { nostyle = MyNoStyle -- your representation of no styles for an element
+        , dividerSize = 40 -- size for the dividers between elements, that can be dropped to in pixels
+        , orientation = Divider.Horizontal -- the orientation the the *dividers* have (not the overall list)
+        , viewItems = myViewFunction -- : List a -> List (Element MyStyle MyVariants Msg)
+        }
+
+-}
+type alias ViewConfig style variant a msg =
     { nostyle : style
     , dividerSize : Float
     , orientation : Divider.Orientation
@@ -28,6 +127,8 @@ type alias ViewSettings style variant a msg =
     }
 
 
+{-| Create an initial `ReorderList.Model` from a list of elements.
+-}
 init : List a -> Model a
 init elements =
     { elements = elements
@@ -39,6 +140,23 @@ init elements =
 -- Update
 
 
+{-| The updating function that takes care of messages. Refactor your code from
+
+    update : Msg -> Model -> Model
+    update =
+        <handle msgs>
+
+to
+
+    updateCatImages : CatImageMsg -> List CatImage -> List CatImage
+    updateCatImages =
+        ...
+
+    update : Msg -> Model -> Model
+    update msg model =
+        { model | catImages = ReorderList.update updateCatImages msg model.catImages }
+
+-}
 update : (msg -> List a -> List a) -> Msg msg -> Model a -> Model a
 update updateOthers msg model =
     case msg of
@@ -94,6 +212,9 @@ applyDrop dragIndex dropIndex draggedElem list =
         list |> insertIndex dropIndex draggedElem |> removeIndex dragIndex
 
 
+{-| The subscriptions necessary for running this module and generating needed
+messages for drag and drop actions.
+-}
 subscriptions : Model a -> Sub (Msg msg)
 subscriptions model =
     Sub.map DragAndDropMsg (DragAndDrop.subscriptions model.dragModel)
@@ -103,7 +224,18 @@ subscriptions model =
 -- View
 
 
-view : ViewSettings style variant a msg -> Model a -> List (Element style variant (Msg msg))
+{-| View a reorderable list of elements, but without combining them all together. You get
+back a `List (Element style variant (Msg msg))`. You can work with this list however you
+want to. Only show the first 10 elements, or only the last 7, or you can interleave these
+elements with other `Element`s.
+
+You need to provide a `ViewConfig` and a `ReorderList.Model`. This already attaches
+dividers when dragging elements.
+
+See `ViewConfig` and `Model`.
+
+-}
+view : ViewConfig style variant a msg -> Model a -> List (Element style variant (Msg msg))
 view settings model =
     let
         divider index =
@@ -157,6 +289,8 @@ view settings model =
 -- Lenses
 
 
+{-| Focus on a subpart of the model, the list of elements.
+-}
 elements : Focus.Setter (Model a) (Model b) (List a) (List b)
 elements f model =
     { model | elements = f model.elements }
