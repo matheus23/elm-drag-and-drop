@@ -3,8 +3,10 @@ module Example exposing (..)
 import DragAndDrop
 import DragAndDrop.Divider as Divider
 import DragAndDrop.ReorderList as ReorderList
+import Element exposing (Element)
+import Element.Attributes as Element
+import ExampleStyle exposing (..)
 import Html exposing (Html)
-import Html.Attributes as Html
 
 
 -- Model
@@ -40,7 +42,12 @@ update msg model =
 -- View
 
 
-view : Model -> Html Msg
+viewElement : Model -> Html Msg
+viewElement =
+    view >> Element.layout stylesheet
+
+
+view : Model -> Element Style Variants Msg
 view model =
     let
         settings =
@@ -49,22 +56,19 @@ view model =
                     List.indexedMap (viewItem model.dragModel) items
             , orientation = Divider.Horizontal
             , dividerSize = 40
+            , nostyle = NoStyle
             }
     in
-    Html.ul
-        [ Html.style [ ( "width", "500px" ) ] ]
+    Element.column ListStyle
+        [ Element.width (Element.px 500) ]
         (ReorderList.view settings model)
 
 
-viewItem : DragAndDrop.Model Int Int -> Int -> Item -> Html msg
+viewItem : DragAndDrop.Model Int Int -> Int -> Item -> Element Style Variants msg
 viewItem dragModel index item =
-    let
-        attributes =
-            [ Html.style [ ( "font-size", "40px" ) ] ]
-                |> appendWhen (DragAndDrop.isDraggingId index dragModel)
-                    [ Html.style [ ( "color", "grey" ) ] ]
-    in
-    Html.li attributes [ Html.text item ]
+    Element.el (ItemStyle (DragAndDrop.isDraggingId index dragModel))
+        []
+        (Element.text item)
 
 
 
@@ -94,5 +98,5 @@ main =
         { init = init
         , subscriptions = subscriptions
         , update = update
-        , view = view
+        , view = viewElement
         }

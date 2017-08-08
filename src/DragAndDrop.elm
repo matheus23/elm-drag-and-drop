@@ -1,9 +1,11 @@
 module DragAndDrop exposing (..)
 
+import Element exposing (Element)
+import Element.Attributes as Attr
 import Focus exposing (..)
 import FocusMore as Focus
 import Html exposing (Html)
-import Html.Events as Events
+import Html.Events as HtmlEvents
 import Json.Decode as Decode
 import Mouse
 
@@ -73,7 +75,11 @@ updateHelp sticky msg =
     updateWithEvents sticky msg >> Tuple.first
 
 
-updateWithEvents : Bool -> Msg dragId dropId -> Model dragId dropId -> ( Model dragId dropId, Maybe (Event dragId dropId) )
+updateWithEvents :
+    Bool
+    -> Msg dragId dropId
+    -> Model dragId dropId
+    -> ( Model dragId dropId, Maybe (Event dragId dropId) )
 updateWithEvents sticky msg model =
     let
         replaceNothingIfEqual value maybe =
@@ -144,27 +150,37 @@ updateWithEvents sticky msg model =
 -- Attributes
 
 
-draggable : Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Html.Attribute msg)
-draggable model inject dragId =
+draggableHtml : Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Html.Attribute msg)
+draggableHtml model inject dragId =
     if not (isDragging model) then
-        [ Events.onMouseEnter (inject (EnterDraggable dragId))
-        , Events.onMouseLeave (inject (LeaveDraggable dragId))
+        [ HtmlEvents.onMouseOver (inject (EnterDraggable dragId))
+        , HtmlEvents.onMouseLeave (inject (LeaveDraggable dragId))
         , preventingOnMouseDown (inject (StartDragging dragId))
         ]
     else
         []
 
 
-droppable : Model dragId dropId -> (Msg dragId dropId -> msg) -> dropId -> List (Html.Attribute msg)
-droppable model inject dropId =
+droppableHtml : Model dragId dropId -> (Msg dragId dropId -> msg) -> dropId -> List (Html.Attribute msg)
+droppableHtml model inject dropId =
     if isDragging model then
-        [ Events.onMouseEnter (inject (EnterDroppable dropId))
-        , Events.onMouseLeave (inject (LeaveDroppable dropId))
+        [ HtmlEvents.onMouseOver (inject (EnterDroppable dropId))
+        , HtmlEvents.onMouseLeave (inject (LeaveDroppable dropId))
 
         -- we find out on what droppable was dropped on by model.droppableHover
         ]
     else
         []
+
+
+draggable : Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Element.Attribute varying msg)
+draggable model inject dragId =
+    List.map Attr.toAttr (draggableHtml model inject dragId)
+
+
+droppable : Model dragId dropId -> (Msg dragId dropId -> msg) -> dropId -> List (Element.Attribute varying msg)
+droppable model inject dropId =
+    List.map Attr.toAttr (droppableHtml model inject dropId)
 
 
 
@@ -222,7 +238,7 @@ equalsMaybe a maybe =
 
 preventingOnMouseDown : msg -> Html.Attribute msg
 preventingOnMouseDown msg =
-    Events.onWithOptions "mousedown"
+    HtmlEvents.onWithOptions "mousedown"
         { stopPropagation = True
         , preventDefault = True
         }

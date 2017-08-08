@@ -2,10 +2,11 @@ module DragAndDrop.ReorderList exposing (..)
 
 import DragAndDrop
 import DragAndDrop.Divider as Divider
+import Element exposing (Element)
+import Element.Attributes as ElementAttr
 import Focus exposing (..)
 import FocusMore as Focus
-import Html exposing (Html)
-import Html.Attributes as Attributes
+import Html.Attributes as Html
 
 
 type alias Model a =
@@ -19,10 +20,11 @@ type Msg msg
     | DragAndDropMsg (DragAndDrop.Msg Int Int)
 
 
-type alias ViewSettings a msg =
-    { dividerSize : Float
+type alias ViewSettings style variant a msg =
+    { nostyle : style
+    , dividerSize : Float
     , orientation : Divider.Orientation
-    , viewItems : List a -> List (Html msg)
+    , viewItems : List a -> List (Element style variant msg)
     }
 
 
@@ -101,36 +103,46 @@ subscriptions model =
 -- View
 
 
-view : ViewSettings a msg -> Model a -> List (Html (Msg msg))
+view : ViewSettings style variant a msg -> Model a -> List (Element style variant (Msg msg))
 view settings model =
     let
         divider index =
-            Divider.viewWith (Divider.defaultDivider (DragAndDrop.isHoveringDroppableId index model.dragModel))
-                settings.orientation
-                settings.dividerSize
-                (List.map (Attributes.map DragAndDropMsg) (DragAndDrop.droppable model.dragModel identity index))
+            Element.html
+                (Divider.viewWith (Divider.defaultDivider (DragAndDrop.isHoveringDroppableId index model.dragModel))
+                    settings.orientation
+                    settings.dividerSize
+                    (List.map (Html.map DragAndDropMsg) (DragAndDrop.droppableHtml model.dragModel identity index))
+                )
+
+        ( elementCombine, elementAttach, elementAttachBefore ) =
+            case settings.orientation of
+                Divider.Horizontal ->
+                    ( Element.column settings.nostyle [], \a e -> Element.below [ a ] e, \a e -> Element.above [ a ] e )
+
+                Divider.Vertical ->
+                    ( Element.row settings.nostyle [], \a e -> Element.onRight [ a ] e, \a e -> Element.onLeft [ a ] e )
 
         addDivider index elem =
             -- No dividers above and below the dragging element needed, dropping there has no effect
             if DragAndDrop.isDraggingId index model.dragModel || DragAndDrop.isDraggingId (index + 1) model.dragModel then
-                [ elem ]
+                elem
             else
-                [ elem, divider (index + 1) ]
+                elementAttach (divider (index + 1)) elem
 
         addDividers list =
             if DragAndDrop.isDragging model.dragModel then
                 if not (DragAndDrop.isDraggingId 0 model.dragModel) then
-                    divider 0 :: List.concat (List.indexedMap addDivider list)
+                    List.indexedMap addDivider list & Focus.index 0 $= elementAttachBefore (divider 0)
                 else
-                    List.concat (List.indexedMap addDivider list)
+                    List.indexedMap addDivider list
             else
                 list
 
-        makeDraggable : Int -> Html msg -> Html (Msg msg)
+        makeDraggable : Int -> Element style variant msg -> Element style variant (Msg msg)
         makeDraggable index elem =
-            Html.div
-                (List.map (Attributes.map DragAndDropMsg) (DragAndDrop.draggable model.dragModel identity index))
-                [ Html.map ElementsMsg elem ]
+            Element.el settings.nostyle
+                (List.map (ElementAttr.map DragAndDropMsg) (DragAndDrop.draggable model.dragModel identity index))
+                (Element.map ElementsMsg elem)
     in
     addDividers (List.indexedMap makeDraggable (settings.viewItems model.elements))
 

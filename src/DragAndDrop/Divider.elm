@@ -83,6 +83,8 @@ defaultDivider hovering orientation size =
                 orientation
             )
         , Attr.preserveAspectRatio "none"
+        , Html.style
+            [ ( "z-index", "100" ) ]
         ]
         [ match
             { horiz = line hovering 0 (size / 2) (size * 5) (size / 2)
