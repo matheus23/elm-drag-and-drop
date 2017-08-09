@@ -1,6 +1,7 @@
 module DragAndDrop.ReorderList
     exposing
-        ( Model
+        ( KeyedViewConfig
+        , Model
         , Msg(..)
         , ViewConfig
         , elements
@@ -8,6 +9,7 @@ module DragAndDrop.ReorderList
         , subscriptions
         , update
         , view
+        , viewKeyed
         )
 
 {-|
@@ -39,6 +41,11 @@ messages.
 # View
 
 @docs ViewConfig, view
+
+
+# Keyed View
+
+@docs KeyedViewConfig, viewKeyed
 
 
 # Model utilities
@@ -124,6 +131,19 @@ type alias ViewConfig style variant a msg =
     , dividerSize : Float
     , orientation : Divider.Orientation
     , viewItems : List a -> List (Element style variant msg)
+    }
+
+
+{-| The config for keyed viewing of lists, for use with `viewKeyed`
+
+In this config `viewItems` returns a key additionally to every element.
+
+-}
+type alias KeyedViewConfig style variant a msg =
+    { nostyle : style
+    , dividerSize : Float
+    , orientation : Divider.Orientation
+    , viewItems : List a -> List ( String, Element style variant msg )
     }
 
 
@@ -281,6 +301,61 @@ view settings model =
             Element.el settings.nostyle
                 (List.map (ElementAttr.map DragAndDropMsg) (DragAndDrop.draggable model.dragModel identity index))
                 (Element.map ElementsMsg elem)
+    in
+    addDividers (List.indexedMap makeDraggable (settings.viewItems model.elements))
+
+
+{-| Keyed version of `view`. Helps the virtualdom to figure out a better mapping from past to
+present elements.
+-}
+viewKeyed : KeyedViewConfig style variant a msg -> Model a -> List ( String, Element style variant (Msg msg) )
+viewKeyed settings model =
+    let
+        divider index =
+            Element.html
+                (Divider.viewWith (Divider.defaultDivider (DragAndDrop.isHoveringDroppableId index model.dragModel))
+                    settings.orientation
+                    settings.dividerSize
+                    (List.map (Html.map DragAndDropMsg) (DragAndDrop.droppableHtml model.dragModel identity index))
+                )
+
+        ( elementCombine, elementAttach, elementAttachBefore ) =
+            case settings.orientation of
+                Divider.Horizontal ->
+                    ( Element.column settings.nostyle []
+                    , \a e -> Element.column settings.nostyle [] [ e, a ]
+                    , \a e -> Element.column settings.nostyle [] [ a, e ]
+                    )
+
+                Divider.Vertical ->
+                    ( Element.row settings.nostyle []
+                    , \a e -> Element.row settings.nostyle [] [ e, a ]
+                    , \a e -> Element.row settings.nostyle [] [ a, e ]
+                    )
+
+        addDivider index ( key, elem ) =
+            -- No dividers above and below the dragging element needed, dropping there has no effect
+            if DragAndDrop.isDraggingId index model.dragModel || DragAndDrop.isDraggingId (index + 1) model.dragModel then
+                ( key, elem )
+            else
+                ( key, elementAttach (divider (index + 1)) elem )
+
+        addDividers list =
+            if DragAndDrop.isDragging model.dragModel then
+                if not (DragAndDrop.isDraggingId 0 model.dragModel) then
+                    List.indexedMap addDivider list & Focus.index 0 => Focus.second $= elementAttachBefore (divider 0)
+                else
+                    List.indexedMap addDivider list
+            else
+                list
+
+        makeDraggable : Int -> ( String, Element style variant msg ) -> ( String, Element style variant (Msg msg) )
+        makeDraggable index ( key, elem ) =
+            ( key
+            , Element.el settings.nostyle
+                (List.map (ElementAttr.map DragAndDropMsg) (DragAndDrop.draggable model.dragModel identity index))
+                (Element.map ElementsMsg elem)
+            )
     in
     addDividers (List.indexedMap makeDraggable (settings.viewItems model.elements))
 
