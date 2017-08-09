@@ -1,6 +1,7 @@
 module DragAndDrop.ReorderList
     exposing
-        ( KeyedViewConfig
+        ( Event
+        , KeyedViewConfig
         , Model
         , Msg(..)
         , ViewConfig
@@ -8,6 +9,7 @@ module DragAndDrop.ReorderList
         , init
         , subscriptions
         , update
+        , updateWithEvents
         , view
         , viewKeyed
         )
@@ -24,18 +26,18 @@ This module is ment to be imported like this:
 
 Using this module you can simply refactor your `List a` of non-reorderable
 elements in your model to reorderable elements, by changing the type to
-`ReorderList.Model a` and adding some update functions, subscriptions and
-messages.
+[`ReorderList.Model a`](DragAndDrop-ReorderList#Model) and adding some
+update functions, subscriptions and messages.
 
 
 # Model
 
-@docs Model, init, Msg
+@docs Model, init, Msg, Event
 
 
 # Update
 
-@docs update, subscriptions
+@docs update, updateWithEvents, subscriptions
 
 
 # View
@@ -78,10 +80,10 @@ You can refactor it to this:
         { catImages : ReorderList.Model CatImage
         }
 
-Use `init` to create an initial model.
+Use [`init`](#init) to create an initial model.
 
-Maintains the `DragAndDrop.Model` for making use of the
-`DragAndDrop`-module.
+Maintains the [`DragAndDrop.Model`](DragAndDrop#Model) for making use of the
+[`DragAndDrop`](DragAndDrop)-module.
 
 -}
 type alias Model a =
@@ -91,7 +93,7 @@ type alias Model a =
 
 
 {-| Use this union type to extend your messages so that you can
-use the `ReorderList.update` function.
+use the [`ReorderList.update`](#update) function.
 
 When you had these messages before:
 
@@ -114,6 +116,14 @@ type Msg msg
     | DragAndDropMsg (DragAndDrop.Msg Int Int)
 
 
+{-| The alias for the type of DragAndDrop-event that the underlying
+low-level api produces. It's just a shorthand.
+See [`DragAndDrop.Event`](DragAndDrop#Event).
+-}
+type alias Event =
+    DragAndDrop.Event Int Int
+
+
 {-| A configuration for the viewing function. It should be the same
 for all of your calls, so could be top-level defined.
 
@@ -134,7 +144,7 @@ type alias ViewConfig style variant a msg =
     }
 
 
-{-| The config for keyed viewing of lists, for use with `viewKeyed`
+{-| The config for keyed viewing of lists, for use with [`viewKeyed`](#viewKeyed)
 
 In this config `viewItems` returns a key additionally to every element.
 
@@ -147,7 +157,7 @@ type alias KeyedViewConfig style variant a msg =
     }
 
 
-{-| Create an initial `ReorderList.Model` from a list of elements.
+{-| Create an initial [`ReorderList.Model`](#Model) from a list of elements.
 -}
 init : List a -> Model a
 init elements =
@@ -179,9 +189,17 @@ to
 -}
 update : (msg -> List a -> List a) -> Msg msg -> Model a -> Model a
 update updateOthers msg model =
+    Tuple.first (updateWithEvents updateOthers msg model)
+
+
+{-| Similar to [`update`](#update), but also gives information about changes
+in the drag-and-drop state. See [`DragAndDrop.Event`](DragAndDrop#Event)
+-}
+updateWithEvents : (msg -> List a -> List a) -> Msg msg -> Model a -> ( Model a, Maybe Event )
+updateWithEvents updateOthers msg model =
     case msg of
         ElementsMsg elementsMsg ->
-            model & elements $= updateOthers elementsMsg
+            ( model & elements $= updateOthers elementsMsg, Nothing )
 
         DragAndDropMsg dragAndDropMsg ->
             let
@@ -191,7 +209,7 @@ update updateOthers msg model =
                 possiblyApplyEvents model =
                     Maybe.withDefault model (Maybe.map2 updateDrop event (Just model))
             in
-            possiblyApplyEvents (model & dragModel .= newDragModel)
+            ( possiblyApplyEvents (model & dragModel .= newDragModel), event )
 
 
 updateDrop : DragAndDrop.Event Int Int -> Model a -> Model a
@@ -249,10 +267,8 @@ back a `List (Element style variant (Msg msg))`. You can work with this list how
 want to. Only show the first 10 elements, or only the last 7, or you can interleave these
 elements with other `Element`s.
 
-You need to provide a `ViewConfig` and a `ReorderList.Model`. This already attaches
-dividers when dragging elements.
-
-See `ViewConfig` and `Model`.
+You need to provide a [`ViewConfig`](#ViewConfig) and a [`ReorderList.Model`](#Model).
+This already attaches dividers when dragging elements.
 
 -}
 view : ViewConfig style variant a msg -> Model a -> List (Element style variant (Msg msg))
@@ -305,7 +321,7 @@ view settings model =
     addDividers (List.indexedMap makeDraggable (settings.viewItems model.elements))
 
 
-{-| Keyed version of `view`. Helps the virtualdom to figure out a better mapping from past to
+{-| Keyed version of [`view`](#view). Helps the virtualdom to figure out a better mapping from past to
 present elements.
 -}
 viewKeyed : KeyedViewConfig style variant a msg -> Model a -> List ( String, Element style variant (Msg msg) )

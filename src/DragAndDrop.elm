@@ -93,8 +93,9 @@ type alias DraggingData dragId dropId =
 
 {-| This is the Model that is present while no element is being dragged.
 In this case `hoverDragId` stores `Just dragId` if the mouse is currently
-over a draggable element (see `draggable` and `draggableHtml`), but the user
-did not yet started to drag the element.
+over a draggable element (see [`draggable`](#draggable) and
+[`draggableHtml`](#draggableHtml)), but the user did not yet started to
+drag the element.
 -}
 type alias NotDraggingData dragId =
     { hoverDragId : Maybe dragId }
@@ -139,9 +140,9 @@ type Msg dragId dropId
     | NoOp
 
 
-{-| Events that can be produced by the `updateWithEvents` function after
-a drop action, that is a user hovering a draggable element, starting to
-drag the mouse and then releasing the mouse.
+{-| Events that can be produced by the [`updateWithEvents`](#updateWithEvents)
+function after a drop action, that is a user hovering a draggable element,
+starting to drag the mouse and then releasing the mouse.
 
 If the user has released the mouse while hovering a droppable element,
 then a `SuccessfulDrop dragId dropId`, if not, a
@@ -197,8 +198,8 @@ subscriptions model =
 -- Update
 
 
-{-| Similar to `updateWithEvents` but non-sticky by default and without
-producing events.
+{-| Similar to [`updateWithEvents`](#udpateWithEvents) but non-sticky by
+default and without producing events.
 
 In your own update function:
 
@@ -221,9 +222,8 @@ updateHelp sticky msg =
     updateWithEvents sticky msg >> Tuple.first
 
 
-{-| Use this method in your update function to receive `Event`s if
+{-| Use this method in your update function to receive [`Event`](#Event)s if
 the user sucessfully drag-and-dropped an element or failed to do so, etc.
-(see `Event`).
 
 Updating can be done sticky, that means a drop is successful, even if the user
 does not hover the droppable area anymore, but has done so before.
@@ -327,8 +327,8 @@ updateWithEvents sticky msg model =
 -- Attributes
 
 
-{-| A version of `draggable` for usage without the style-elements package, but with
-elm-lang/html.
+{-| A version of [`draggable`](#draggable) for usage without the
+style-elements package, but with elm-lang/html.
 -}
 draggableHtml : Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Html.Attribute msg)
 draggableHtml model inject dragId =
@@ -342,8 +342,8 @@ draggableHtml model inject dragId =
         []
 
 
-{-| A version of `droppable` for usage without the style-elements package, but with
-elm-lang/html.
+{-| A version of [`droppable`](#droppable) for usage without the
+style-elements package, but with elm-lang/html.
 -}
 droppableHtml : Model dragId dropId -> (Msg dragId dropId -> msg) -> dropId -> List (Html.Attribute msg)
 droppableHtml model inject dropId =
