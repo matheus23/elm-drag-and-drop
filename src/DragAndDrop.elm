@@ -3,7 +3,7 @@ module DragAndDrop
         ( DraggingData
         , Event(..)
         , Model(..)
-        , Msg
+        , Msg(..)
         , NotDraggingData
         , draggable
         , draggableHtml
