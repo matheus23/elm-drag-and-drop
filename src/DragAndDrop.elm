@@ -7,6 +7,7 @@ module DragAndDrop
         , NotDraggingData
         , draggable
         , draggableHtml
+        , draggableInstant
         , droppable
         , droppableHtml
         , init
@@ -45,7 +46,7 @@ useful for applications, though.
 
 # Make Elements draggable/droppable in your View
 
-@docs draggable, droppable, draggableHtml, droppableHtml
+@docs draggable, draggableInstant, droppable, draggableHtml, droppableHtml
 
 
 # Querying the Dragging Model
@@ -331,11 +332,29 @@ updateWithEvents sticky msg model =
 style-elements package, but with elm-lang/html.
 -}
 draggableHtml : Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Html.Attribute msg)
-draggableHtml model inject dragId =
+draggableHtml =
+    draggableHtmlHelp False
+
+
+{-| A version of [`draggableHtml`](#draggableHtml) that instantly activates
+a drag. Uses dom's mousedown instead of dragstart event.
+-}
+draggableHtmlInstant : Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Html.Attribute msg)
+draggableHtmlInstant =
+    draggableHtmlHelp True
+
+
+draggableHtmlHelp : Bool -> Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Html.Attribute msg)
+draggableHtmlHelp instant model inject dragId =
     if not (isDragging model) then
         [ HtmlEvents.onMouseOver (inject (EnterDraggable dragId))
         , HtmlEvents.onMouseLeave (inject (LeaveDraggable dragId))
-        , preventingDragStart (\mousePosition -> inject (StartDragging dragId mousePosition))
+        , (if instant then
+            preventingMouseDown
+           else
+            preventingDragStart
+          )
+            (\mousePosition -> inject (StartDragging dragId mousePosition))
         ]
             ++ Html5.DragDrop.draggable (\msg -> inject NoOp) dragId
     else
@@ -355,6 +374,20 @@ droppableHtml model inject dropId =
         ]
     else
         []
+
+
+{-| Make a style-element `Element` draggable in your view by appending these attributes:
+
+    viewCatImage : Model -> CatIdentifier -> Element Style Variation Msg
+    viewCatImage model identifier =
+        Element.el Style
+            (DragAndDrop.draggable model.dragModel DragAndDropMsg identifier)
+            (viewImage model identifier)
+
+-}
+draggableInstant : Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Element.Attribute varying msg)
+draggableInstant model inject dragId =
+    List.map Attr.toAttr (draggableHtmlInstant model inject dragId)
 
 
 {-| Make a style-element `Element` draggable in your view by appending these attributes:
@@ -451,6 +484,17 @@ equalsMaybe a maybe =
 preventingDragStart : (Mouse.Position -> msg) -> Html.Attribute msg
 preventingDragStart makeMsg =
     HtmlEvents.onWithOptions "dragstart"
+        { stopPropagation = True
+        , preventDefault = True
+        }
+        (relativeMousePosition
+            |> Decode.map makeMsg
+        )
+
+
+preventingMouseDown : (Mouse.Position -> msg) -> Html.Attribute msg
+preventingMouseDown makeMsg =
+    HtmlEvents.onWithOptions "mousedown"
         { stopPropagation = True
         , preventDefault = True
         }
