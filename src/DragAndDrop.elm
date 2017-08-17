@@ -3,10 +3,11 @@ module DragAndDrop
         ( DraggingData
         , Event(..)
         , Model(..)
-        , Msg
+        , Msg(..)
         , NotDraggingData
         , draggable
         , draggableHtml
+        , draggableInstant
         , droppable
         , droppableHtml
         , init
@@ -45,7 +46,7 @@ useful for applications, though.
 
 # Make Elements draggable/droppable in your View
 
-@docs draggable, droppable, draggableHtml, droppableHtml
+@docs draggable, draggableInstant, droppable, draggableHtml, droppableHtml
 
 
 # Querying the Dragging Model
@@ -93,8 +94,9 @@ type alias DraggingData dragId dropId =
 
 {-| This is the Model that is present while no element is being dragged.
 In this case `hoverDragId` stores `Just dragId` if the mouse is currently
-over a draggable element (see `draggable` and `draggableHtml`), but the user
-did not yet started to drag the element.
+over a draggable element (see [`draggable`](#draggable) and
+[`draggableHtml`](#draggableHtml)), but the user did not yet started to
+drag the element.
 -}
 type alias NotDraggingData dragId =
     { hoverDragId : Maybe dragId }
@@ -139,9 +141,9 @@ type Msg dragId dropId
     | NoOp
 
 
-{-| Events that can be produced by the `updateWithEvents` function after
-a drop action, that is a user hovering a draggable element, starting to
-drag the mouse and then releasing the mouse.
+{-| Events that can be produced by the [`updateWithEvents`](#updateWithEvents)
+function after a drop action, that is a user hovering a draggable element,
+starting to drag the mouse and then releasing the mouse.
 
 If the user has released the mouse while hovering a droppable element,
 then a `SuccessfulDrop dragId dropId`, if not, a
@@ -197,8 +199,8 @@ subscriptions model =
 -- Update
 
 
-{-| Similar to `updateWithEvents` but non-sticky by default and without
-producing events.
+{-| Similar to [`updateWithEvents`](#udpateWithEvents) but non-sticky by
+default and without producing events.
 
 In your own update function:
 
@@ -221,9 +223,8 @@ updateHelp sticky msg =
     updateWithEvents sticky msg >> Tuple.first
 
 
-{-| Use this method in your update function to receive `Event`s if
+{-| Use this method in your update function to receive [`Event`](#Event)s if
 the user sucessfully drag-and-dropped an element or failed to do so, etc.
-(see `Event`).
 
 Updating can be done sticky, that means a drop is successful, even if the user
 does not hover the droppable area anymore, but has done so before.
@@ -327,23 +328,41 @@ updateWithEvents sticky msg model =
 -- Attributes
 
 
-{-| A version of `draggable` for usage without the style-elements package, but with
-elm-lang/html.
+{-| A version of [`draggable`](#draggable) for usage without the
+style-elements package, but with elm-lang/html.
 -}
 draggableHtml : Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Html.Attribute msg)
-draggableHtml model inject dragId =
+draggableHtml =
+    draggableHtmlHelp False
+
+
+{-| A version of [`draggableHtml`](#draggableHtml) that instantly activates
+a drag. Uses dom's mousedown instead of dragstart event.
+-}
+draggableHtmlInstant : Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Html.Attribute msg)
+draggableHtmlInstant =
+    draggableHtmlHelp True
+
+
+draggableHtmlHelp : Bool -> Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Html.Attribute msg)
+draggableHtmlHelp instant model inject dragId =
     if not (isDragging model) then
         [ HtmlEvents.onMouseOver (inject (EnterDraggable dragId))
         , HtmlEvents.onMouseLeave (inject (LeaveDraggable dragId))
-        , preventingDragStart (\mousePosition -> inject (StartDragging dragId mousePosition))
+        , (if instant then
+            preventingMouseDown
+           else
+            preventingDragStart
+          )
+            (\mousePosition -> inject (StartDragging dragId mousePosition))
         ]
             ++ Html5.DragDrop.draggable (\msg -> inject NoOp) dragId
     else
         []
 
 
-{-| A version of `droppable` for usage without the style-elements package, but with
-elm-lang/html.
+{-| A version of [`droppable`](#droppable) for usage without the
+style-elements package, but with elm-lang/html.
 -}
 droppableHtml : Model dragId dropId -> (Msg dragId dropId -> msg) -> dropId -> List (Html.Attribute msg)
 droppableHtml model inject dropId =
@@ -355,6 +374,20 @@ droppableHtml model inject dropId =
         ]
     else
         []
+
+
+{-| Make a style-element `Element` draggable in your view by appending these attributes:
+
+    viewCatImage : Model -> CatIdentifier -> Element Style Variation Msg
+    viewCatImage model identifier =
+        Element.el Style
+            (DragAndDrop.draggable model.dragModel DragAndDropMsg identifier)
+            (viewImage model identifier)
+
+-}
+draggableInstant : Model dragId dropId -> (Msg dragId dropId -> msg) -> dragId -> List (Element.Attribute varying msg)
+draggableInstant model inject dragId =
+    List.map Attr.toAttr (draggableHtmlInstant model inject dragId)
 
 
 {-| Make a style-element `Element` draggable in your view by appending these attributes:
@@ -451,6 +484,17 @@ equalsMaybe a maybe =
 preventingDragStart : (Mouse.Position -> msg) -> Html.Attribute msg
 preventingDragStart makeMsg =
     HtmlEvents.onWithOptions "dragstart"
+        { stopPropagation = True
+        , preventDefault = True
+        }
+        (relativeMousePosition
+            |> Decode.map makeMsg
+        )
+
+
+preventingMouseDown : (Mouse.Position -> msg) -> Html.Attribute msg
+preventingMouseDown makeMsg =
+    HtmlEvents.onWithOptions "mousedown"
         { stopPropagation = True
         , preventDefault = True
         }

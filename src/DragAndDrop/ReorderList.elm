@@ -1,6 +1,6 @@
 module DragAndDrop.ReorderList
     exposing
-        ( KeyedViewConfig
+        ( Event
         , Model
         , Msg(..)
         , ViewConfig
@@ -8,6 +8,7 @@ module DragAndDrop.ReorderList
         , init
         , subscriptions
         , update
+        , updateWithEvents
         , view
         , viewKeyed
         )
@@ -24,28 +25,23 @@ This module is ment to be imported like this:
 
 Using this module you can simply refactor your `List a` of non-reorderable
 elements in your model to reorderable elements, by changing the type to
-`ReorderList.Model a` and adding some update functions, subscriptions and
-messages.
+[`ReorderList.Model a`](DragAndDrop-ReorderList#Model) and adding some
+update functions, subscriptions and messages.
 
 
 # Model
 
-@docs Model, init, Msg
+@docs Model, init, Msg, Event
 
 
 # Update
 
-@docs update, subscriptions
+@docs update, updateWithEvents, subscriptions
 
 
 # View
 
-@docs ViewConfig, view
-
-
-# Keyed View
-
-@docs KeyedViewConfig, viewKeyed
+@docs ViewConfig, view, viewKeyed
 
 
 # Model utilities
@@ -78,10 +74,10 @@ You can refactor it to this:
         { catImages : ReorderList.Model CatImage
         }
 
-Use `init` to create an initial model.
+Use [`init`](#init) to create an initial model.
 
-Maintains the `DragAndDrop.Model` for making use of the
-`DragAndDrop`-module.
+Maintains the [`DragAndDrop.Model`](DragAndDrop#Model) for making use of the
+[`DragAndDrop`](DragAndDrop)-module.
 
 -}
 type alias Model a =
@@ -90,28 +86,24 @@ type alias Model a =
     }
 
 
-{-| Use this union type to extend your messages so that you can
-use the `ReorderList.update` function.
-
-When you had these messages before:
+{-| This is the type of messages this list can create. Include it in your
+message union type like so:
 
     type Msg
-        = UpdateCatImage Int ...
-        | RemoveCatImage Int
-
-You refactor it to be like this:
-
-    type CatImageMsg
-        = UpdateCatImage Int ...
-        | RemoveCatImage Int
-
-    type alias Msg =
-        ReorderList.Msg CatImageMsg
+        = UpdateCatImage Int
+        | ReorderListMsg ReorderList.Msg
 
 -}
-type Msg msg
-    = ElementsMsg msg
-    | DragAndDropMsg (DragAndDrop.Msg Int Int)
+type Msg
+    = DragAndDropMsg (DragAndDrop.Msg Int Int)
+
+
+{-| The alias for the type of DragAndDrop-event that the underlying
+low-level api produces. It's just a shorthand.
+See [`DragAndDrop.Event`](DragAndDrop#Event).
+-}
+type alias Event =
+    DragAndDrop.Event Int Int
 
 
 {-| A configuration for the viewing function. It should be the same
@@ -122,32 +114,17 @@ for all of your calls, so could be top-level defined.
         { nostyle = MyNoStyle -- your representation of no styles for an element
         , dividerSize = 40 -- size for the dividers between elements, that can be dropped to in pixels
         , orientation = Divider.Horizontal -- the orientation the the *dividers* have (not the overall list)
-        , viewItems = myViewFunction -- : List a -> List (Element MyStyle MyVariants Msg)
         }
 
 -}
-type alias ViewConfig style variant a msg =
+type alias ViewConfig style =
     { nostyle : style
     , dividerSize : Float
     , orientation : Divider.Orientation
-    , viewItems : List a -> List (Element style variant msg)
     }
 
 
-{-| The config for keyed viewing of lists, for use with `viewKeyed`
-
-In this config `viewItems` returns a key additionally to every element.
-
--}
-type alias KeyedViewConfig style variant a msg =
-    { nostyle : style
-    , dividerSize : Float
-    , orientation : Divider.Orientation
-    , viewItems : List a -> List ( String, Element style variant msg )
-    }
-
-
-{-| Create an initial `ReorderList.Model` from a list of elements.
+{-| Create an initial [`ReorderList.Model`](#Model) from a list of elements.
 -}
 init : List a -> Model a
 init elements =
@@ -160,29 +137,32 @@ init elements =
 -- Update
 
 
-{-| The updating function that takes care of messages. Refactor your code from
+{-| The updating function that updates the model when it's given
+[`Msg`](#Msg)s.
 
-    update : Msg -> Model -> Model
-    update =
-        <handle msgs>
-
-to
-
-    updateCatImages : CatImageMsg -> List CatImage -> List CatImage
-    updateCatImages =
-        ...
+In your update function:
 
     update : Msg -> Model -> Model
     update msg model =
-        { model | catImages = ReorderList.update updateCatImages msg model.catImages }
+        case msg of
+            UpdateCatImage index ->
+                ...
+
+            ReorderListMsg reorderListMsg ->
+                { model | catImages = ReorderList.update reorderListMsg model.catImages }
 
 -}
-update : (msg -> List a -> List a) -> Msg msg -> Model a -> Model a
-update updateOthers msg model =
-    case msg of
-        ElementsMsg elementsMsg ->
-            model & elements $= updateOthers elementsMsg
+update : Msg -> Model a -> Model a
+update msg model =
+    Tuple.first (updateWithEvents msg model)
 
+
+{-| Similar to [`update`](#update), but also gives information about changes
+in the drag-and-drop state. See [`DragAndDrop.Event`](DragAndDrop#Event)
+-}
+updateWithEvents : Msg -> Model a -> ( Model a, Maybe Event )
+updateWithEvents msg model =
+    case msg of
         DragAndDropMsg dragAndDropMsg ->
             let
                 ( newDragModel, event ) =
@@ -191,12 +171,12 @@ update updateOthers msg model =
                 possiblyApplyEvents model =
                     Maybe.withDefault model (Maybe.map2 updateDrop event (Just model))
             in
-            possiblyApplyEvents (model & dragModel .= newDragModel)
+            ( possiblyApplyEvents (model & dragModel .= newDragModel), event )
 
 
 updateDrop : DragAndDrop.Event Int Int -> Model a -> Model a
 updateDrop event model =
-    case Debug.log "event" event of
+    case event of
         DragAndDrop.SuccessfulDrop dragIndex dropIndex ->
             Maybe.withDefault model
                 (Maybe.map
@@ -235,7 +215,7 @@ applyDrop dragIndex dropIndex draggedElem list =
 {-| The subscriptions necessary for running this module and generating needed
 messages for drag and drop actions.
 -}
-subscriptions : Model a -> Sub (Msg msg)
+subscriptions : Model a -> Sub Msg
 subscriptions model =
     Sub.map DragAndDropMsg (DragAndDrop.subscriptions model.dragModel)
 
@@ -245,25 +225,34 @@ subscriptions model =
 
 
 {-| View a reorderable list of elements, but without combining them all together. You get
-back a `List (Element style variant (Msg msg))`. You can work with this list however you
+back a `List (Element style variant msg)`. You can work with this list however you
 want to. Only show the first 10 elements, or only the last 7, or you can interleave these
 elements with other `Element`s.
 
-You need to provide a `ViewConfig` and a `ReorderList.Model`. This already attaches
-dividers when dragging elements.
+You need to provide a [`ViewConfig`](#ViewConfig), a way to inject messages into your message
+union type, a viewing function for elements and a [`ReorderList.Model`](#Model).
 
-See `ViewConfig` and `Model`.
+This already attaches dividers when dragging elements.
 
 -}
-view : ViewConfig style variant a msg -> Model a -> List (Element style variant (Msg msg))
-view settings model =
+view :
+    ViewConfig style
+    -> (Msg -> msg)
+    -> (List a -> List (Element style variant msg))
+    -> Model a
+    -> List (Element style variant msg)
+view settings injectMsg viewItems model =
     let
+        dragAndDropMsg =
+            DragAndDropMsg >> injectMsg
+
         divider index =
             Element.html
-                (Divider.viewWith (Divider.defaultDivider (DragAndDrop.isHoveringDroppableId index model.dragModel))
+                (Divider.viewWith
+                    (Divider.defaultDivider (DragAndDrop.isHoveringDroppableId index model.dragModel))
                     settings.orientation
                     settings.dividerSize
-                    (List.map (Html.map DragAndDropMsg) (DragAndDrop.droppableHtml model.dragModel identity index))
+                    (List.map (Html.map dragAndDropMsg) (DragAndDrop.droppableHtml model.dragModel identity index))
                 )
 
         ( elementCombine, elementAttach, elementAttachBefore ) =
@@ -296,27 +285,36 @@ view settings model =
             else
                 list
 
-        makeDraggable : Int -> Element style variant msg -> Element style variant (Msg msg)
         makeDraggable index elem =
             Element.el settings.nostyle
-                (List.map (ElementAttr.map DragAndDropMsg) (DragAndDrop.draggable model.dragModel identity index))
-                (Element.map ElementsMsg elem)
+                (List.map (ElementAttr.map dragAndDropMsg) (DragAndDrop.draggable model.dragModel identity index))
+                elem
     in
-    addDividers (List.indexedMap makeDraggable (settings.viewItems model.elements))
+    addDividers (List.indexedMap makeDraggable (viewItems model.elements))
 
 
-{-| Keyed version of `view`. Helps the virtualdom to figure out a better mapping from past to
+{-| Keyed version of [`view`](#view). Helps the virtualdom to figure out a better mapping from past to
 present elements.
 -}
-viewKeyed : KeyedViewConfig style variant a msg -> Model a -> List ( String, Element style variant (Msg msg) )
-viewKeyed settings model =
+viewKeyed :
+    ViewConfig style
+    -> (Msg -> msg)
+    -> (List a -> List ( String, Element style variant msg ))
+    -> Model a
+    -> List ( String, Element style variant msg )
+viewKeyed settings injectMsg viewItems model =
+    -- copy paste programming, weeeee
     let
+        dragAndDropMsg =
+            DragAndDropMsg >> injectMsg
+
         divider index =
             Element.html
-                (Divider.viewWith (Divider.defaultDivider (DragAndDrop.isHoveringDroppableId index model.dragModel))
+                (Divider.viewWith
+                    (Divider.defaultDivider (DragAndDrop.isHoveringDroppableId index model.dragModel))
                     settings.orientation
                     settings.dividerSize
-                    (List.map (Html.map DragAndDropMsg) (DragAndDrop.droppableHtml model.dragModel identity index))
+                    (List.map (Html.map dragAndDropMsg) (DragAndDrop.droppableHtml model.dragModel identity index))
                 )
 
         ( elementCombine, elementAttach, elementAttachBefore ) =
@@ -349,15 +347,14 @@ viewKeyed settings model =
             else
                 list
 
-        makeDraggable : Int -> ( String, Element style variant msg ) -> ( String, Element style variant (Msg msg) )
         makeDraggable index ( key, elem ) =
             ( key
             , Element.el settings.nostyle
-                (List.map (ElementAttr.map DragAndDropMsg) (DragAndDrop.draggable model.dragModel identity index))
-                (Element.map ElementsMsg elem)
+                (List.map (ElementAttr.map dragAndDropMsg) (DragAndDrop.draggable model.dragModel identity index))
+                elem
             )
     in
-    addDividers (List.indexedMap makeDraggable (settings.viewItems model.elements))
+    addDividers (List.indexedMap makeDraggable (viewItems model.elements))
 
 
 

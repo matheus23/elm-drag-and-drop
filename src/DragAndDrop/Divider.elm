@@ -6,7 +6,7 @@ module DragAndDrop.Divider
         )
 
 {-| This module's contents are almost all unexposed right now. This might change in the future,
-when you can customize the dividers in your `ReorderList`.
+when you can customize the dividers in your [`ReorderList`](DragAndDrop-ReorderList).
 
     import DragAndDrop.Divider as Divider
 

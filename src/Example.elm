@@ -23,12 +23,9 @@ type alias Model =
     ReorderList.Model Item
 
 
-type ItemsMsg
+type Msg
     = UpdateItem Int String
-
-
-type alias Msg =
-    ReorderList.Msg ItemsMsg
+    | ReorderListMsg ReorderList.Msg
 
 
 init : ( Model, Cmd Msg )
@@ -42,14 +39,12 @@ init =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ReorderList.update updateItems msg model ! []
-
-
-updateItems : ItemsMsg -> List Item -> List Item
-updateItems msg items =
     case msg of
         UpdateItem index newContent ->
-            items & Focus.index index .= newContent
+            (model & ReorderList.elements => Focus.index index .= newContent) ! []
+
+        ReorderListMsg reorderListMsg ->
+            ReorderList.update reorderListMsg model ! []
 
 
 
@@ -64,21 +59,21 @@ viewElement =
 view : Model -> Element Style Variants Msg
 view model =
     let
+        viewItems =
+            List.indexedMap (viewItem model.dragModel)
+
         settings =
-            { viewItems =
-                \items ->
-                    List.indexedMap (viewItem model.dragModel) items
-            , orientation = Divider.Horizontal
+            { orientation = Divider.Horizontal
             , dividerSize = 40
             , nostyle = NoStyle
             }
     in
     Element.column ListStyle
         [ Element.width (Element.px 500) ]
-        (ReorderList.view settings model)
+        (ReorderList.view settings ReorderListMsg viewItems model)
 
 
-viewItem : DragAndDrop.Model Int Int -> Int -> Item -> Element Style Variants ItemsMsg
+viewItem : DragAndDrop.Model Int Int -> Int -> Item -> Element Style Variants Msg
 viewItem dragModel index item =
     Element.inputText (ItemStyle (DragAndDrop.isDraggingId index dragModel))
         [ Events.onInput (UpdateItem index) ]
@@ -103,7 +98,7 @@ appendWhen b toAppend list =
 
 subscriptions : Model -> Sub Msg
 subscriptions =
-    ReorderList.subscriptions
+    Sub.map ReorderListMsg << ReorderList.subscriptions
 
 
 main : Program Never Model Msg
