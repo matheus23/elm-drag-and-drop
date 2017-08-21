@@ -449,7 +449,7 @@ isDraggingId droppableId model =
 {-| Find out wheter the user is currently hovering over a specific draggable
 element (while not dragging)
 -}
-isHoveringDraggableId : dragId -> Model dragId dragId -> Bool
+isHoveringDraggableId : dragId -> Model dragId dropId -> Bool
 isHoveringDraggableId dragId model =
     case model of
         NotDragging { hoverDragId } ->
